@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VisionAI - Sistema Avançado de Reconhecimento Facial Multi-Ângulo</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            cyber: {
+              bg: '#0a0d14',
+              card: '#121824',
+              border: '#1e293b',
+              accent: '#00f0ff',
+              purple: '#7000ff',
+              success: '#00ff88',
+              danger: '#ff0055',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts & FontAwesome Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Face-API.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #06090e;
+      color: #f1f5f9;
+      overflow-x: hidden;
+    }
+
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Animação de Scanner na WebCam */
+    .scanner-line {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #00f0ff, transparent);
+      box-shadow: 0 0 15px #00f0ff;
+      animation: scan 2.5s ease-in-out infinite alternate;
+    }
+
+    @keyframes scan {
+      0% { top: 0%; opacity: 0.3; }
+      50% { opacity: 1; }
+      100% { top: 100%; opacity: 0.3; }
+    }
+
+    /* Glowing borders */
+    .glow-cyan {
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.15);
+    }
+    .glow-cyan-lg {
+      box-shadow: 0 0 35px rgba(0, 240, 255, 0.25);
+    }
+    
+    /* Scrollbar personalizada */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0a0d14;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #00f0ff;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between text-slate-100 selection:bg-cyan-500 selection:text-black">
+
+  <!-- Modal de Carregamento dos Modelos de IA -->
+  <div id="loadingOverlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-md">
+    <div class="relative flex items-center justify-center mb-6">
+      <div class="w-24 h-24 border-4 border-cyan-500/20 border-t-cyan-400 rounded-full animate-spin"></div>
+      <div class="absolute w-16 h-16 border-4 border-purple-500/20 border-b-purple-400 rounded-full animate-spin" style="animation-direction: reverse; animation-duration: 1.5s;"></div>
+      <i class="fa-solid fa-brain text-cyan-400 text-2xl animate-pulse"></i>
+    </div>
+    <h2 class="text-2xl font-bold tracking-wider text-cyan-400 mb-2">INICIALIZANDO MOTOR DE IA</h2>
+    <p id="loadingStatusText" class="text-sm font-mono text-slate-400 mb-4">Baixando modelos neurais de reconhecimento facial...</p>
+    <div class="w-72 bg-slate-800 h-2 rounded-full overflow-hidden p-0.5 border border-slate-700">
+      <div id="loadingProgressBar" class="bg-gradient-to-r from-cyan-500 to-purple-600 h-full w-10 transition-all duration-300 rounded-full"></div>
+    </div>
+  </div>
+
+  <!-- Cabeçalho Principal -->
+  <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-400">
+          <i class="fa-solid fa-expand text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-wider text-white flex items-center gap-2">
+            Vision<span class="text-cyan-400">AI</span>
+            <span class="text-[10px] uppercase font-mono px-2 py-0.5 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 rounded-md">v2.5 Neural</span>
+          </h1>
+          <p class="text-xs text-slate-400">Sistema Biométrico Multi-Ângulo de Tempo Real</p>
+        </div>
+      </div>
+
+      <!-- Navegação por Abas -->
+      <nav class="flex space-x-1 sm:space-x-2 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+        <button id="tabLiveBtn" onclick="switchTab('live')" class="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/20">
+          <i class="fa-solid fa-video"></i>
+          <span class="hidden sm:inline">Monitoramento</span> Tempo Real
+        </button>
+        <button id="tabRegisterBtn" onclick="switchTab('register')" class="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-all">
+          <i class="fa-solid fa-user-plus"></i>
+          Cadastrar <span class="hidden sm:inline">Rosto</span>
+        </button>
+        <button id="tabMemoryBtn" onclick="switchTab('memory')" class="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-all relative">
+          <i class="fa-solid fa-database"></i>
+          Memória <span id="memoryBadge" class="ml-1 px-1.5 py-0.2 bg-slate-800 border border-slate-700 text-[10px] rounded-full text-cyan-400">0</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Conteúdo Principal -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full">
+
+    <!-- ABA 1: MONITORAMENTO EM TEMPO REAL -->
+    <section id="tabLive" class="space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Área da Câmera (Stream + Canvas Layer) -->
+        <div class="lg:col-span-2 flex flex-col gap-3">
+          <div class="relative bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl flex items-center justify-center min-h-[380px] sm:min-h-[480px]">
+            <!-- WebCam Live Video -->
+            <video id="liveVideo" autoplay playsinline muted class="w-full h-full object-cover transform scale-x-[-1]"></video>
+            <!-- Canvas Overlay para retângulos e nomes -->
+            <canvas id="liveCanvas" class="absolute top-0 left-0 w-full h-full pointer-events-none transform scale-x-[-1]"></canvas>
+            
+            <!-- Linha animada de Scan Cyberpunk -->
+            <div id="liveScanner" class="scanner-line"></div>
+
+            <!-- Overlay de Status Superior -->
+            <div class="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none">
+              <div class="flex items-center gap-2 bg-slate-950/80 border border-slate-800 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-mono text-emerald-400">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>CÂMERA ATIVA</span>
+              </div>
+              <div id="fpsCounter" class="bg-slate-950/80 border border-slate-800 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-mono text-slate-300">
+                FPS: --
+              </div>
+            </div>
+
+            <!-- Overlay de Erro na Câmera -->
+            <div id="cameraError" class="hidden absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 text-center z-20">
+              <i class="fa-solid fa-video-slash text-4xl text-rose-500 mb-3"></i>
+              <h3 class="text-lg font-bold text-white mb-1">Câmera Não Encontrada ou Indisponível</h3>
+              <p class="text-sm text-slate-400 max-w-md mb-4">O dispositivo de vídeo não foi detectado no seu navegador. Você pode tentar novamente ou alternar para o <strong>Modo Simulador com Imagens</strong>.</p>
+              <div class="flex items-center gap-3">
+                <button onclick="startLiveCamera()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-semibold rounded-lg text-xs transition-all">
+                  <i class="fa-solid fa-rotate-right mr-1"></i> Tentar Novamente
+                </button>
+                <button onclick="enableSimulatedStream()" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold rounded-lg text-xs transition-all">
+                  <i class="fa-solid fa-image mr-1"></i> Usar Simulador de Imagem
+                </button>
+              </div>
+            </div>
+
+            <!-- Upload para Teste quando a câmera falha -->
+            <div id="simulatedInputContainer" class="hidden absolute bottom-4 left-4 right-4 z-20 bg-slate-900/90 border border-cyan-500/40 backdrop-blur-md p-3 rounded-xl flex items-center justify-between">
+              <span class="text-xs text-cyan-300 font-mono flex items-center gap-1.5">
+                <i class="fa-solid fa-flask text-cyan-400"></i> Modo Simulador Ativo
+              </span>
+              <label class="px-3 py-1.5 bg-cyan-500 text-slate-950 hover:bg-cyan-400 font-semibold text-xs rounded-lg cursor-pointer transition-all">
+                <i class="fa-solid fa-upload mr-1"></i> Testar com Foto
+                <input type="file" accept="image/*" onchange="loadSimulatedImage(event)" class="hidden">
+              </label>
+            </div>
+          </div>
+
+          <!-- Controles Rápidos -->
+          <div class="flex items-center justify-between bg-slate-900/60 border border-slate-800 p-3 rounded-xl">
+            <div class="flex items-center gap-3">
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="voiceToggle" class="sr-only peer" checked>
+                <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
+                <span class="ml-2 text-xs font-medium text-slate-300">Síntese de Voz (Saudação)</span>
+              </label>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-slate-400 font-mono">Sensibilidade:</span>
+              <select id="distanceThreshold" class="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-cyan-500">
+                <option value="0.45">Rigorosa (0.45)</option>
+                <option value="0.55" selected>Equilibrada (0.55)</option>
+                <option value="0.65">Flexível (0.65)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Painel Lateral de Status & Detecção Ativa -->
+        <div class="flex flex-col gap-4">
+          <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 flex-1 flex flex-col">
+            <h3 class="text-sm font-semibold tracking-wider text-slate-300 uppercase mb-4 flex items-center justify-between">
+              <span>Status do Reconhecimento</span>
+              <i class="fa-solid fa-microchip text-cyan-400"></i>
+            </h3>
+
+            <!-- Card do Rosto Detectado no Momento -->
+            <div id="detectionCard" class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 flex-1 flex flex-col justify-center items-center text-center transition-all duration-300">
+              <div class="w-20 h-20 rounded-full border-2 border-dashed border-slate-700 flex items-center justify-center mb-3 text-slate-600">
+                <i class="fa-solid fa-user-astronaut text-3xl"></i>
+              </div>
+              <p class="text-slate-400 text-sm mb-1">Nenhum rosto detectado</p>
+              <span class="text-xs font-mono text-slate-600">Aguardando posicionamento...</span>
+            </div>
+
+            <!-- Estatísticas do Sistema -->
+            <div class="mt-4 border-t border-slate-800 pt-4 grid grid-cols-2 gap-3 text-xs font-mono">
+              <div class="bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/50">
+                <span class="text-slate-500 block">Pessoas Salvas</span>
+                <span id="statRegisteredCount" class="text-base font-bold text-cyan-400">0</span>
+              </div>
+              <div class="bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/50">
+                <span class="text-slate-500 block">Ângulos Salvos</span>
+                <span id="statAnglesCount" class="text-base font-bold text-purple-400">0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Histórico Recente de Reconhecimentos -->
+          <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 h-52 flex flex-col">
+            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+              <span>Log de Atividade</span>
+              <i class="fa-solid fa-list-ul text-slate-500"></i>
+            </h4>
+            <div id="activityLog" class="flex-1 overflow-y-auto space-y-2 pr-1 font-mono text-[11px]">
+              <div class="text-slate-600 italic text-center py-4">Nenhum registro ainda...</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ABA 2: CADASTRO DE PESSOAS MULTI-ÂNGULO -->
+    <section id="tabRegister" class="hidden space-y-6">
+      <div class="max-w-4xl mx-auto bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+        <div class="border-b border-slate-800 pb-4 mb-6">
+          <h2 class="text-xl font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-user-plus text-cyan-400"></i> Cadastrar Nova Pessoa na Memória Biométrica
+          </h2>
+          <p class="text-xs text-slate-400 mt-1">Para garantir precisão total, capture múltiplos ângulos faciais (Frente, Perfil e Inclinações).</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Formulário com Dados -->
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Nome Completo *</label>
+              <input type="text" id="regName" placeholder="Ex: Carlos Silva" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500 transition-all">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Cargo / Função / Descrição</label>
+              <input type="text" id="regRole" placeholder="Ex: Engenheiro de Software" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500 transition-all">
+            </div>
+
+            <!-- Modos de Captura -->
+            <div class="pt-2">
+              <label class="block text-xs font-semibold text-slate-300 uppercase mb-2">Método de Captura de Fotos</label>
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" id="btnModeCam" onclick="setRegisterMode('cam')" class="px-3 py-2 bg-cyan-500/10 border border-cyan-500 text-cyan-400 text-xs font-semibold rounded-xl flex items-center justify-center gap-2">
+                  <i class="fa-solid fa-camera"></i> Usar Webcam
+                </button>
+                <button type="button" id="btnModeUpload" onclick="setRegisterMode('upload')" class="px-3 py-2 bg-slate-950 border border-slate-800 text-slate-400 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 hover:border-slate-700">
+                  <i class="fa-solid fa-upload"></i> Upload de Fotos
+                </button>
+              </div>
+            </div>
+
+            <!-- Dicas de Ângulo -->
+            <div class="bg-cyan-950/20 border border-cyan-500/20 rounded-xl p-4 text-xs text-cyan-300/90 space-y-1.5">
+              <p class="font-bold flex items-center gap-1.5">
+                <i class="fa-solid fa-circle-info text-cyan-400"></i> Dica para Reconhecimento Perfeito:
+              </p>
+              <p>Capture pelo menos 3 a 5 fotos mudando a posição do rosto (Frente, ligeiramente para a esquerda, direita e para cima).</p>
+            </div>
+
+            <button id="btnSavePerson" onclick="savePersonToMemory()" class="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-slate-950 font-bold rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
+              <i class="fa-solid fa-floppy-disk mr-1"></i> Salvar na Memória Biométrica
+            </button>
+          </div>
+
+          <!-- Área de Captura de Mídia (Webcam / Upload) -->
+          <div class="flex flex-col gap-4">
+            <!-- Box da Câmera de Cadastro -->
+            <div id="regCamContainer" class="relative bg-slate-950 rounded-xl border border-slate-800 overflow-hidden aspect-video flex items-center justify-center">
+              <video id="regVideo" autoplay playsinline muted class="w-full h-full object-cover transform scale-x-[-1]"></video>
+              <canvas id="regCanvasOverlay" class="absolute top-0 left-0 w-full h-full pointer-events-none transform scale-x-[-1]"></canvas>
+              
+              <!-- Target Overlay para centralizar rosto -->
+              <div class="absolute inset-0 border-2 border-cyan-500/20 border-dashed rounded-xl pointer-events-none flex items-center justify-center">
+                <div class="w-32 h-40 border border-cyan-400/40 rounded-full"></div>
+              </div>
+            </div>
+
+            <!-- Box de Upload de Imagens -->
+            <div id="regUploadContainer" class="hidden relative bg-slate-950 rounded-xl border-2 border-dashed border-slate-800 hover:border-cyan-500/50 transition-all p-6 text-center flex flex-col items-center justify-center aspect-video">
+              <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-500 mb-2"></i>
+              <p class="text-xs text-slate-300 font-semibold mb-1">Arraste ou Selecione fotos da pessoa</p>
+              <p class="text-[10px] text-slate-500">Selecione múltiplas fotos de ângulos diferentes (PNG, JPG)</p>
+              <input type="file" id="fileInput" accept="image/*" multiple onchange="handleFileUpload(event)" class="absolute inset-0 opacity-0 cursor-pointer">
+            </div>
+
+            <!-- Botões de Ação da Webcam de Cadastro -->
+            <div id="regCamButtons" class="flex gap-2">
+              <button onclick="captureAngleFromCam()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-500/30 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition-all">
+                <i class="fa-solid fa-camera-retro"></i> Capturar Ângulo Atual
+              </button>
+              <button onclick="autoCaptureSequence()" class="py-2.5 px-4 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition-all" title="Captura 5 fotos automaticamente em sequência">
+                <i class="fa-solid fa-bolt"></i> Captura Rápida (5x)
+              </button>
+            </div>
+
+            <!-- Miniaturas dos Ângulos Capturados -->
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-slate-400 uppercase">Ângulos Armazenados (<span id="capturedCount">0</span>)</span>
+                <button onclick="clearCapturedAngles()" class="text-[10px] text-rose-400 hover:underline">Limpar fotos</button>
+              </div>
+              <div id="thumbnailsGrid" class="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-36 overflow-y-auto p-1 bg-slate-950/40 rounded-xl border border-slate-800 min-h-[70px] items-center">
+                <p id="emptyThumbnailsText" class="col-span-full text-center text-xs text-slate-600 italic">Nenhum ângulo capturado ainda</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ABA 3: MEMÓRIA / BANCO DE DADOS DE PESSOAS -->
+    <section id="tabMemory" class="hidden space-y-6">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div>
+          <h2 class="text-xl font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-database text-purple-400"></i> Pessoas Cadastradas na Memória
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Gerencie os perfis, edite descritores faciais ou exporte o banco de dados.</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="exportDatabase()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs rounded-lg font-medium transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-download"></i> Exportar
+          </button>
+          <button onclick="clearAllMemory()" class="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs rounded-lg font-medium transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-trash-can"></i> Limpar Tudo
+          </button>
+        </div>
+      </div>
+
+      <!-- Grid de Cards de Pessoas -->
+      <div id="peopleGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <!-- Inserido dinamicamente via JS -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Rodapé Footer -->
+  <footer class="border-t border-slate-800 bg-slate-950 py-4 text-center text-xs text-slate-500">
+    <p>VisionAI Biométrica &copy; 2026 - Desenvolvido com TensorFlow.js e Face-API.js</p>
+  </footer>
+
+  <!-- LÓGICA PRINCIPAL EM JAVASCRIPT -->
+  <script>
+    /* ==========================================================================
+       ESTADO GLOBAL DA APLICAÇÃO
+       ========================================================================== */
+    const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+    
+    let isModelsLoaded = false;
+    let registeredPeople = []; // Array com { id, name, role, descriptors: [], photoThumb }
+    let faceMatcher = null;
+
+    // Medição de FPS e Performance
+    let lastFrameTime = performance.now();
+
+    // Streams e Elementos da Câmera
+    let liveStream = null;
+    let regStream = null;
+    let liveInterval = null;
+    let isSimulatedMode = false;
+    let simulatedImageEl = null;
+
+    // Ângulos temporários sendo cadastrados
+    let tempDescriptors = [];
+    let tempThumbnails = [];
+    let currentRegisterMode = 'cam'; // 'cam' ou 'upload'
+
+    // Troca de saudações recentes para não repetir áudio constantemente
+    let lastGreetedName = '';
+    let lastGreetTime = 0;
+
+    /* ==========================================================================
+       INICIALIZAÇÃO E CARREGAMENTO DE MODELOS
+       ========================================================================== */
+    window.addEventListener('DOMContentLoaded', async () => {
+      loadPeopleFromLocalStorage();
+      await loadFaceApiModels();
+      startLiveCamera();
+    });
+
+    async function loadFaceApiModels() {
+      const progressBar = document.getElementById('loadingProgressBar');
+      const statusText = document.getElementById('loadingStatusText');
+      const overlay = document.getElementById('loadingOverlay');
+
+      try {
+        statusText.innerText = 'Carregando Detector SSD Mobilenet...';
+        progressBar.style.width = '25%';
+        await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+
+        statusText.innerText = 'Carregando Mapeador de Marcas Faciais (68 Landmarks)...';
+        progressBar.style.width = '60%';
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+
+        statusText.innerText = 'Carregando Reconhecedor Biométrico Neural...';
+        progressBar.style.width = '90%';
+        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+
+        progressBar.style.width = '100%';
+        statusText.innerText = 'Sistemas Prontos!';
+        
+        isModelsLoaded = true;
+        rebuildFaceMatcher();
+
+        setTimeout(() => {
+          overlay.classList.add('hidden');
+        }, 500);
+
+      } catch (err) {
+        console.error('Erro ao carregar modelos face-api:', err);
+        statusText.innerText = 'Erro ao carregar modelos de IA! Verifique sua conexão.';
+        statusText.classList.add('text-rose-400');
+      }
+    }
+
+    /* ==========================================================================
+       GERENCIAMENTO DE MEMÓRIA E LOCALSTORAGE
+       ========================================================================== */
+    function loadPeopleFromLocalStorage() {
+      const data = localStorage.getItem('visionai_people');
+      if (data) {
+        try {
+          const parsed = JSON.parse(data);
+          // Reconverter arrays numéricos para Float32Array exigidos pelo face-api
+          registeredPeople = parsed.map(person => ({
+            ...person,
+            descriptors: person.descriptors.map(arr => new Float32Array(arr))
+          }));
+        } catch (e) {
+          console.error('Erro ao restaurar banco de dados local:', e);
+          registeredPeople = [];
+        }
+      }
+      updateUIStats();
+    }
+
+    function savePeopleToLocalStorage() {
+      // Converter Float32Array para Array JS normal para serialização JSON
+      const serialized = registeredPeople.map(person => ({
+        ...person,
+        descriptors: person.descriptors.map(desc => Array.from(desc))
+      }));
+      localStorage.setItem('visionai_people', JSON.stringify(serialized));
+      updateUIStats();
+      rebuildFaceMatcher();
+    }
+
+    function rebuildFaceMatcher() {
+      if (!isModelsLoaded || registeredPeople.length === 0) {
+        faceMatcher = null;
+        return;
+      }
+
+      const labeledDescriptors = registeredPeople.map(person => {
+        return new faceapi.LabeledFaceDescriptors(person.id, person.descriptors);
+      });
+
+      // Cria o matcher com threshold padrão
+      const threshold = parseFloat(document.getElementById('distanceThreshold').value || 0.55);
+      faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, threshold);
+    }
+
+    function updateUIStats() {
+      const totalPeople = registeredPeople.length;
+      const totalAngles = registeredPeople.reduce((acc, p) => acc + p.descriptors.length, 0);
+
+      document.getElementById('statRegisteredCount').innerText = totalPeople;
+      document.getElementById('statAnglesCount').innerText = totalAngles;
+      document.getElementById('memoryBadge').innerText = totalPeople;
+
+      renderMemoryGrid();
+    }
+
+    /* ==========================================================================
+       ABAS E NAVEGAÇÃO
+       ========================================================================== */
+    function switchTab(tabName) {
+      const liveSection = document.getElementById('tabLive');
+      const regSection = document.getElementById('tabRegister');
+      const memSection = document.getElementById('tabMemory');
+
+      const btnLive = document.getElementById('tabLiveBtn');
+      const btnReg = document.getElementById('tabRegisterBtn');
+      const btnMem = document.getElementById('tabMemoryBtn');
+
+      // Reset de estilos das abas
+      [btnLive, btnReg, btnMem].forEach(btn => {
+        btn.className = 'flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-all';
+      });
+
+      liveSection.classList.add('hidden');
+      regSection.classList.add('hidden');
+      memSection.classList.add('hidden');
+
+      if (tabName === 'live') {
+        liveSection.classList.remove('hidden');
+        btnLive.className = 'flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/20';
+        startLiveCamera();
+        stopRegisterCamera();
+      } else if (tabName === 'register') {
+        regSection.classList.remove('hidden');
+        btnReg.className = 'flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/20';
+        if (currentRegisterMode === 'cam') startRegisterCamera();
+      } else if (tabName === 'memory') {
+        memSection.classList.remove('hidden');
+        btnMem.className = 'flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/20';
+        stopRegisterCamera();
+      }
+    }
+
+    /* ==========================================================================
+       LOOPS DE CÂMERA E RECONHECIMENTO (LIVE)
+       ========================================================================== */
+    async function startLiveCamera() {
+      const video = document.getElementById('liveVideo');
+      const errorBox = document.getElementById('cameraError');
+      const simContainer = document.getElementById('simulatedInputContainer');
+
+      if (liveStream) return; // Já está rodando
+
+      try {
+        isSimulatedMode = false;
+        simContainer.classList.add('hidden');
+        
+        liveStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
+        });
+        video.srcObject = liveStream;
+        errorBox.classList.add('hidden');
+
+        video.onloadedmetadata = () => {
+          runLiveRecognition();
+        };
+      } catch (err) {
+        console.warn('Erro de câmera:', err);
+        errorBox.classList.remove('hidden');
+      }
+    }
+
+    function enableSimulatedStream() {
+      const errorBox = document.getElementById('cameraError');
+      const simContainer = document.getElementById('simulatedInputContainer');
+      const video = document.getElementById('liveVideo');
+
+      errorBox.classList.add('hidden');
+      simContainer.classList.remove('hidden');
+      isSimulatedMode = true;
+
+      // Criar elemento de imagem simulada se não existir
+      if (!simulatedImageEl) {
+        simulatedImageEl = new Image();
+        simulatedImageEl.crossOrigin = "anonymous";
+        simulatedImageEl.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop';
+        simulatedImageEl.onload = () => {
+          runLiveRecognition();
+        };
+      } else {
+        runLiveRecognition();
+      }
+    }
+
+    function loadSimulatedImage(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (!simulatedImageEl) simulatedImageEl = new Image();
+        simulatedImageEl.src = e.target.result;
+        simulatedImageEl.onload = () => {
+          runLiveRecognition();
+        };
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function runLiveRecognition() {
+      const video = document.getElementById('liveVideo');
+      const canvas = document.getElementById('liveCanvas');
+      const fpsDisplay = document.getElementById('fpsCounter');
+
+      if (!isModelsLoaded) {
+        liveInterval = requestAnimationFrame(runLiveRecognition);
+        return;
+      }
+
+      const inputElement = isSimulatedMode ? simulatedImageEl : video;
+
+      if (!inputElement || (!isSimulatedMode && (video.paused || video.ended))) {
+        liveInterval = requestAnimationFrame(runLiveRecognition);
+        return;
+      }
+
+      // Se for modo simulado, desenha a imagem no canvas background ou exibe no canvas
+      const displayWidth = video.clientWidth || 640;
+      const displayHeight = video.clientHeight || 480;
+      const displaySize = { width: displayWidth, height: displayHeight };
+
+      faceapi.matchDimensions(canvas, displaySize);
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (isSimulatedMode && simulatedImageEl) {
+        // Desenha imagem de simulação proporcionalmente
+        ctx.drawImage(simulatedImageEl, 0, 0, displayWidth, displayHeight);
+      }
+
+      // Detecção de múltiplos rostos com landmarks e descritores
+      const detections = await faceapi.detectAllFaces(inputElement, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 }))
+        .withFaceLandmarks()
+        .withFaceDescriptors();
+
+      const resizedDetections = faceapi.resizeResults(detections, displaySize);
+
+      // Calcular FPS
+      const now = performance.now();
+      const fps = Math.round(1000 / (now - lastFrameTime));
+      lastFrameTime = now;
+      fpsDisplay.innerText = `FPS: ${fps}`;
+
+      let currentDetectionCard = document.getElementById('detectionCard');
+
+      if (resizedDetections.length > 0) {
+        let bestMatchPerson = null;
+
+        resizedDetections.forEach(detection => {
+          const { box } = detection.detection;
+          let labelName = 'Desconhecido';
+          let confidenceText = '';
+          let boxColor = '#ff0055'; // Rosa/Vermelho para desconhecido
+
+          if (faceMatcher) {
+            const match = faceMatcher.findBestMatch(detection.descriptor);
+            
+            if (match.label !== 'unknown') {
+              const personObj = registeredPeople.find(p => p.id === match.label);
+              if (personObj) {
+                labelName = personObj.name;
+                const accuracy = Math.round((1 - match.distance) * 100);
+                confidenceText = `${accuracy}% precisão`;
+                boxColor = '#00ff88'; // Verde para reconhecido
+                bestMatchPerson = { person: personObj, accuracy };
+              }
+            }
+          }
+
+          // Desenhando caixa personalizada estilo UI Futurista
+          ctx.strokeStyle = boxColor;
+          ctx.lineWidth = 2.5;
+          ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+          // Cantos com efeito Cyber
+          const cornerLen = 12;
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3;
+          // Top Left
+          ctx.beginPath(); ctx.moveTo(box.x, box.y + cornerLen); ctx.lineTo(box.x, box.y); ctx.lineTo(box.x + cornerLen, box.y); ctx.stroke();
+          // Top Right
+          ctx.beginPath(); ctx.moveTo(box.x + box.width - cornerLen, box.y); ctx.lineTo(box.x + box.width, box.y); ctx.lineTo(box.x + box.width, box.y + cornerLen); ctx.stroke();
+
+          // Banner de Identificação no topo do Rosto
+          ctx.fillStyle = 'rgba(10, 13, 20, 0.85)';
+          ctx.fillRect(box.x, box.y - 30, Math.max(box.width, 140), 26);
+          ctx.fillStyle = boxColor;
+          ctx.font = 'bold 12px Inter, sans-serif';
+          ctx.fillText(labelName.toUpperCase(), box.x + 8, box.y - 12);
+
+          if (confidenceText) {
+            ctx.fillStyle = '#cbd5e1';
+            ctx.font = '10px monospace';
+            ctx.fillText(confidenceText, box.x + 8 + (labelName.length * 7), box.y - 12);
+          }
+        });
+
+        // Atualizar Card de Status Biométrico Lateral
+        if (bestMatchPerson) {
+          const { person, accuracy } = bestMatchPerson;
+          currentDetectionCard.innerHTML = `
+            <div class="relative mb-3">
+              <img src="${person.photoThumb || 'https://placehold.co/100x100/1e293b/00f0ff?text=Rosto'}" class="w-20 h-20 rounded-full object-cover border-2 border-emerald-400 shadow-lg shadow-emerald-500/20">
+              <span class="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-2 border-slate-900 rounded-full"></span>
+            </div>
+            <h4 class="text-base font-bold text-white mb-0.5">${person.name}</h4>
+            <p class="text-xs text-cyan-400 mb-2">${person.role || 'Pessoa Cadastrada'}</p>
+            <div class="bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-full text-emerald-400 font-mono text-xs font-semibold">
+              <i class="fa-solid fa-circle-check mr-1"></i> RECONHECIDO (${accuracy}%)
+            </div>
+          `;
+
+          triggerGreeting(person.name);
+          addActivityLog(person.name, true, accuracy);
+        } else {
+          currentDetectionCard.innerHTML = `
+            <div class="w-20 h-20 rounded-full border-2 border-rose-500 flex items-center justify-center mb-3 bg-rose-500/10 text-rose-500 animate-pulse">
+              <i class="fa-solid fa-user-xmark text-3xl"></i>
+            </div>
+            <h4 class="text-base font-bold text-white mb-0.5">Desconhecido</h4>
+            <p class="text-xs text-slate-400 mb-2">Rosto não cadastrado na memória</p>
+            <div class="bg-rose-500/10 border border-rose-500/30 px-3 py-1 rounded-full text-rose-400 font-mono text-xs font-semibold">
+              <i class="fa-solid fa-triangle-exclamation mr-1"></i> NÃO REGISTRADO
+            </div>
+          `;
+          addActivityLog('Pessoa Desconhecida', false);
+        }
+
+      } else {
+        currentDetectionCard.innerHTML = `
+          <div class="w-20 h-20 rounded-full border-2 border-dashed border-slate-700 flex items-center justify-center mb-3 text-slate-600">
+            <i class="fa-solid fa-user-astronaut text-3xl"></i>
+          </div>
+          <p class="text-slate-400 text-sm mb-1">Nenhum rosto detectado</p>
+          <span class="text-xs font-mono text-slate-600">Aguardando posicionamento...</span>
+        `;
+      }
+
+      liveInterval = requestAnimationFrame(runLiveRecognition);
+    }
+
+    /* ==========================================================================
+       CADASTRO MULTI-ÂNGULO (WEBCAM & UPLOAD)
+       ========================================================================== */
+    async function startRegisterCamera() {
+      const video = document.getElementById('regVideo');
+      if (regStream) return;
+
+      try {
+        regStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
+        });
+        video.srcObject = regStream;
+      } catch (err) {
+        console.error('Erro ao abrir câmera para cadastro:', err);
+      }
+    }
+
+    function stopRegisterCamera() {
+      if (regStream) {
+        regStream.getTracks().forEach(track => track.stop());
+        regStream = null;
+      }
+    }
+
+    function setRegisterMode(mode) {
+      currentRegisterMode = mode;
+      const camContainer = document.getElementById('regCamContainer');
+      const uploadContainer = document.getElementById('regUploadContainer');
+      const camButtons = document.getElementById('regCamButtons');
+
+      const btnCam = document.getElementById('btnModeCam');
+      const btnUpload = document.getElementById('btnModeUpload');
+
+      if (mode === 'cam') {
+        camContainer.classList.remove('hidden');
+        camButtons.classList.remove('hidden');
+        uploadContainer.classList.add('hidden');
+
+        btnCam.className = 'px-3 py-2 bg-cyan-500/10 border border-cyan-500 text-cyan-400 text-xs font-semibold rounded-xl flex items-center justify-center gap-2';
+        btnUpload.className = 'px-3 py-2 bg-slate-950 border border-slate-800 text-slate-400 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 hover:border-slate-700';
+        
+        startRegisterCamera();
+      } else {
+        camContainer.classList.add('hidden');
+        camButtons.classList.add('hidden');
+        uploadContainer.classList.remove('hidden');
+
+        btnUpload.className = 'px-3 py-2 bg-cyan-500/10 border border-cyan-500 text-cyan-400 text-xs font-semibold rounded-xl flex items-center justify-center gap-2';
+        btnCam.className = 'px-3 py-2 bg-slate-950 border border-slate-800 text-slate-400 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 hover:border-slate-700';
+
+        stopRegisterCamera();
+      }
+    }
+
+    async function captureAngleFromCam() {
+      const video = document.getElementById('regVideo');
+      if (!video || !isModelsLoaded) return;
+
+      const detection = await faceapi.detectSingleFace(video, new faceapi.SsdMobilenetv1Options())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!detection) {
+        alert('Nenhum rosto detectado na câmera! Posicione-se no centro da imagem e tente novamente.');
+        return;
+      }
+
+      // Capturar frame recortado como miniatura
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const thumbUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+      tempDescriptors.push(detection.descriptor);
+      tempThumbnails.push(thumbUrl);
+
+      renderThumbnails();
+    }
+
+    async function autoCaptureSequence() {
+      alert('Iniciando captura rápida de 5 ângulos! Mova levemente o rosto (Frente, Esquerda, Direita, Cima) durante os flashes.');
+      for (let i = 0; i < 5; i++) {
+        await captureAngleFromCam();
+        await new Promise(res => setTimeout(res, 800));
+      }
+    }
+
+    async function handleFileUpload(event) {
+      const files = event.target.files;
+      if (!files || files.length === 0 || !isModelsLoaded) return;
+
+      for (let file of files) {
+        const img = await faceapi.bufferToImage(file);
+        const detection = await faceapi.detectSingleFace(img, new faceapi.SsdMobilenetv1Options())
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        if (detection) {
+          // Criar Thumbnail pequena
+          const canvas = document.createElement('canvas');
+          canvas.width = 150; canvas.height = 150;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, 150, 150);
+
+          tempDescriptors.push(detection.descriptor);
+          tempThumbnails.push(canvas.toDataURL('image/jpeg', 0.8));
+        } else {
+          console.warn(`Nenhum rosto detectado na imagem: ${file.name}`);
+        }
+      }
+
+      renderThumbnails();
+    }
+
+    function renderThumbnails() {
+      const grid = document.getElementById('thumbnailsGrid');
+      const countEl = document.getElementById('capturedCount');
+      countEl.innerText = tempDescriptors.length;
+
+      if (tempThumbnails.length === 0) {
+        grid.innerHTML = `<p id="emptyThumbnailsText" class="col-span-full text-center text-xs text-slate-600 italic">Nenhum ângulo capturado ainda</p>`;
+        return;
+      }
+
+      grid.innerHTML = tempThumbnails.map((url, idx) => `
+        <div class="relative group rounded-lg overflow-hidden border border-slate-700 aspect-square">
+          <img src="${url}" class="w-full h-full object-cover">
+          <button onclick="removeAngle(${idx})" class="absolute top-1 right-1 bg-rose-600 text-white w-4 h-4 rounded-full text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+            &times;
+          </button>
+          <span class="absolute bottom-0 inset-x-0 bg-slate-950/80 text-[8px] font-mono text-center text-cyan-300 py-0.5">
+            Ângulo #${idx + 1}
+          </span>
+        </div>
+      `).join('');
+    }
+
+    function removeAngle(index) {
+      tempDescriptors.splice(index, 1);
+      tempThumbnails.splice(index, 1);
+      renderThumbnails();
+    }
+
+    function clearCapturedAngles() {
+      tempDescriptors = [];
+      tempThumbnails = [];
+      renderThumbnails();
+    }
+
+    function savePersonToMemory() {
+      const nameInput = document.getElementById('regName');
+      const roleInput = document.getElementById('regRole');
+
+      const name = nameInput.value.trim();
+      const role = roleInput.value.trim();
+
+      if (!name) {
+        alert('Por favor, informe o Nome Completo da pessoa.');
+        return;
+      }
+
+      if (tempDescriptors.length === 0) {
+        alert('É necessário capturar pelo menos 1 foto/ângulo do rosto antes de salvar!');
+        return;
+      }
+
+      const newPerson = {
+        id: 'person_' + Date.now(),
+        name,
+        role: role || 'Cadastrado via Sistema',
+        descriptors: [...tempDescriptors],
+        photoThumb: tempThumbnails[0] || '',
+        createdAt: new Date().toLocaleDateString('pt-BR')
+      };
+
+      registeredPeople.push(newPerson);
+      savePeopleToLocalStorage();
+
+      // Reset do formulário
+      nameInput.value = '';
+      roleInput.value = '';
+      clearCapturedAngles();
+
+      alert(`Pessoa "${name}" cadastrada com sucesso na memória com ${newPerson.descriptors.length} ângulos!`);
+      switchTab('memory');
+    }
+
+    /* ==========================================================================
+       GERENCIAMENTO DE CARDS NA ABA MEMÓRIA
+       ========================================================================== */
+    function renderMemoryGrid() {
+      const grid = document.getElementById('peopleGrid');
+
+      if (registeredPeople.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full text-center py-12 bg-slate-900/40 rounded-2xl border border-dashed border-slate-800 p-8">
+            <i class="fa-solid fa-folder-open text-4xl text-slate-600 mb-3"></i>
+            <h3 class="text-base font-bold text-slate-300">Nenhum Rosto Cadastrado</h3>
+            <p class="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">Cadastre a primeira pessoa utilizando a webcam ou enviando fotos com múltiplos ângulos.</p>
+            <button onclick="switchTab('register')" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold rounded-xl text-xs transition-all">
+              Ir para Cadastro
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = registeredPeople.map(p => `
+        <div class="bg-slate-900 border border-slate-800 hover:border-cyan-500/40 rounded-2xl p-4 transition-all flex flex-col justify-between">
+          <div class="flex items-start gap-3">
+            <img src="${p.photoThumb || 'https://placehold.co/100x100/1e293b/00f0ff?text=Rosto'}" class="w-14 h-14 rounded-xl object-cover border border-slate-700">
+            <div class="overflow-hidden">
+              <h4 class="text-sm font-bold text-white truncate">${p.name}</h4>
+              <p class="text-xs text-cyan-400 truncate">${p.role}</p>
+              <span class="inline-block mt-1 text-[10px] font-mono text-slate-500">Cadastrado em: ${p.createdAt || 'Recente'}</span>
+            </div>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
+            <span class="text-slate-400 flex items-center gap-1">
+              <i class="fa-solid fa-camera text-purple-400"></i> ${p.descriptors.length} Ângulos
+            </span>
+            <button onclick="deletePerson('${p.id}')" class="text-rose-400 hover:text-rose-300 p-1.5 hover:bg-rose-500/10 rounded-lg transition-all" title="Excluir da memória">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function deletePerson(id) {
+      if (confirm('Tem certeza que deseja remover esta pessoa da memória biométrica?')) {
+        registeredPeople = registeredPeople.filter(p => p.id !== id);
+        savePeopleToLocalStorage();
+      }
+    }
+
+    function clearAllMemory() {
+      if (confirm('ATENÇÃO: Deseja apagar TODAS as pessoas e dados biométricos salvos? Esta ação não pode ser desfeita.')) {
+        registeredPeople = [];
+        savePeopleToLocalStorage();
+      }
+    }
+
+    function exportDatabase() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(registeredPeople.map(p => ({
+        ...p,
+        descriptors: p.descriptors.map(d => Array.from(d))
+      }))));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `visionai_memory_backup_${Date.now()}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    /* ==========================================================================
+       RECURSOS ADICIONAIS: SÍNTESE DE VOZ E LOGS
+       ========================================================================== */
+    function triggerGreeting(name) {
+      const voiceToggle = document.getElementById('voiceToggle');
+      if (!voiceToggle.checked) return;
+
+      const now = Date.now();
+      // Não repetir voz em menos de 8 segundos para a mesma pessoa
+      if (lastGreetedName === name && (now - lastGreetTime) < 8000) {
+        return;
+      }
+
+      lastGreetedName = name;
+      lastGreetTime = now;
+
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(`Bem-vindo, ${name}`);
+        utterance.lang = 'pt-BR';
+        utterance.rate = 1.0;
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
+    let lastLogText = '';
+    function addActivityLog(name, recognized, accuracy = 0) {
+      const logBox = document.getElementById('activityLog');
+      const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+      const logText = `${name}_${recognized}`;
+      if (logText === lastLogText) return; // Evitar spam repetido
+      lastLogText = logText;
+
+      // Remover placeholder de lista vazia
+      if (logBox.children[0]?.classList.contains('italic')) {
+        logBox.innerHTML = '';
+      }
+
+      const logEntry = document.createElement('div');
+      logEntry.className = `p-2 rounded-lg border flex items-center justify-between ${
+        recognized 
+          ? 'bg-emerald-950/20 border-emerald-500/20 text-emerald-300' 
+          : 'bg-rose-950/20 border-rose-500/20 text-rose-300'
+      }`;
+
+      logEntry.innerHTML = `
+        <span class="truncate flex items-center gap-1.5">
+          <i class="fa-solid ${recognized ? 'fa-circle-check text-emerald-400' : 'fa-circle-xmark text-rose-400'}"></i>
+          <strong>${name}</strong> ${accuracy ? `(${accuracy}%)` : ''}
+        </span>
+        <span class="text-[9px] text-slate-500">${time}</span>
+      `;
+
+      logBox.insertBefore(logEntry, logBox.firstChild);
+
+      // Limitar a 15 entradas no log
+      if (logBox.children.length > 15) {
+        logBox.removeChild(logBox.lastChild);
+      }
+    }
+
+    // Recarregar sensibilidade do matcher ao alterar o select
+    document.getElementById('distanceThreshold').addEventListener('change', () => {
+      rebuildFaceMatcher();
+    });
+  </script>
+</body>
+</html>
